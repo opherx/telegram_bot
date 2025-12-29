@@ -4,8 +4,12 @@ import sqlite3
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
+# Load token from environment
 TOKEN = os.getenv("TOKEN")
+if not TOKEN:
+    raise ValueError("No TOKEN found in environment variables")
 
+# SQLite connection
 conn = sqlite3.connect("demo.db", check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute("""
@@ -16,6 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
 """)
 conn.commit()
 
+# Handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🤖 DEMO Trading Bot\n\nSimulation only.\n\nUse /deposit to start."
@@ -53,6 +58,7 @@ async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Balance: ${new_balance:.2f}\n\n⚠️ DEMO MODE"
     )
 
+# Main
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
@@ -60,4 +66,5 @@ def main():
     app.add_handler(CommandHandler("trade", trade))
     app.run_polling()
 
-main()
+if __name__ == "__main__":
+    main()
