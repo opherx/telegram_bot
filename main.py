@@ -4,12 +4,11 @@ import sqlite3
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# Load token from environment
 TOKEN = os.getenv("TOKEN")
 if not TOKEN:
     raise ValueError("No TOKEN found in environment variables")
 
-# SQLite connection
+# SQLite setup
 conn = sqlite3.connect("demo.db", check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute("""
