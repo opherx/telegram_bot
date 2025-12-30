@@ -1,29 +1,19 @@
-# Use Python 3.11 instead of 3.13
-FROM python:3.11-slim
+# Use full Python 3.11 image
+FROM python:3.11
 
 WORKDIR /app
 
-# Install system dependencies for Pillow
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    make \
-    libjpeg-dev \
-    zlib1g-dev \
-    libpng-dev \
-    libfreetype6-dev \
-    liblcms2-dev \
-    libwebp-dev \
-    tcl8.6-dev tk8.6-dev \
-    libopenjp2-7-dev \
-    libtiff5-dev \
-    python3-dev \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
+# Copy project files
 COPY . /app
 
+# Upgrade pip
 RUN pip install --upgrade pip
+
+# Install Python dependencies (PTB with job-queue + Pillow)
 RUN pip install -r requirements.txt
 
+# Persist demo.db outside container (volume mapping)
+VOLUME ["/app/demo.db"]
+
+# Run the bot
 CMD ["python", "main.py"]
