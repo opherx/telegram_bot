@@ -1,6 +1,13 @@
 import sqlite3
 
-conn = sqlite3.connect("bot.db", check_same_thread=False)
+DB_FILE = "bot.db"
+
+def get_db():
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+    return conn
+
+# --- Existing code ---
+conn = get_db()
 cursor = conn.cursor()
 
 cursor.execute("""
@@ -14,7 +21,6 @@ CREATE TABLE IF NOT EXISTS users (
 
 conn.commit()
 
-
 def add_user(tg_id, username, password):
     cursor.execute(
         "INSERT OR REPLACE INTO users (telegram_id, username, password, balance) VALUES (?, ?, ?, ?)",
@@ -22,11 +28,9 @@ def add_user(tg_id, username, password):
     )
     conn.commit()
 
-
 def get_user(tg_id):
     cursor.execute("SELECT * FROM users WHERE telegram_id = ?", (tg_id,))
     return cursor.fetchone()
-
 
 def update_balance(tg_id, amount):
     cursor.execute(
