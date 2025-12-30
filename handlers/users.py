@@ -5,26 +5,22 @@ from database import add_user, get_user
 USERNAME, PASSWORD = range(2)
 
 async def register_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start registration and ask for username."""
-    await update.message.reply_text("👤 Enter a username:")
+    await update.message.reply_text("👤 Enter your username:")
     return USERNAME
 
 async def register_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Store username and ask for password."""
     context.user_data["username"] = update.message.text
-    await update.message.reply_text("🔐 Enter a password:")
+    await update.message.reply_text("🔐 Enter your password:")
     return PASSWORD
 
 async def register_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Save user to database and finish registration."""
     username = context.user_data["username"]
     password = update.message.text
-    user_id = update.effective_user.id
+    tg_id = update.effective_user.id
+    add_user(tg_id, username, password)
 
-    # Use your existing database function to add the user
-    add_user(user_id, username, password)
+    # Add to bot's user list
+    context.bot_data["USERS"].append(tg_id)
 
-    await update.message.reply_text(
-        f"✅ Registration successful!\n\nUsername: {username}\nBalance: $0"
-    )
+    await update.message.reply_text(f"✅ Registration complete! Welcome, {username} 🎉")
     return ConversationHandler.END
