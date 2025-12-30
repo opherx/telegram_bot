@@ -1,6 +1,6 @@
 import random
 from database import get_all_users, update_balance
-from telegram import ParseMode
+from telegram.constants import ParseMode  # <-- fixed import
 
 PAIRS = ["EUR/USD", "GBP/USD", "BTC/USDT", "ETH/USDT"]
 
