@@ -1,34 +1,39 @@
 import random
-from database import get_user, update_balance
+from database import get_all_users, update_balance
+from telegram import ParseMode
 
-# List of demo trading pairs
 PAIRS = ["EUR/USD", "GBP/USD", "BTC/USDT", "ETH/USDT"]
 
 async def send_trade(context):
-    """Send a trade signal to the channel and update users' balances."""
-    
-    pair = random.choice(PAIRS)
-    result = random.choice(["WIN", "LOSS"])
-    amount = random.randint(5, 50)  # Demo trade amount
+    """Send a rich trade signal and update balances"""
 
-    message = f"💹 Trade Signal\nPair: {pair}\nResult: {result}\nAmount: ${amount}"
+    pair = random.choice(PAIRS)
+    entry = round(random.uniform(100, 50000), 2)
+    exit_price = entry + round(random.uniform(-500, 800), 2)
+    result = "✅ WIN" if exit_price > entry else "❌ LOSS"
+    amount = random.randint(5, 50)
+
+    message = (
+        f"📊 *New Trade Signal!*\n\n"
+        f"💹 Pair: *{pair}*\n"
+        f"🚀 Entry: `{entry}`\n"
+        f"🎯 Target/Exit: `{exit_price}`\n"
+        f"💰 Amount: `${amount}`\n"
+        f"📌 Result: *{result}*"
+    )
 
     channel_id = context.bot_data.get("CHANNEL_ID")
     if channel_id:
         await context.bot.send_message(
             chat_id=channel_id,
-            text=message
+            text=message,
+            parse_mode=ParseMode.MARKDOWN
         )
 
-    # Update all registered users
-    # Since get_all_users was removed, we manually query users from DB
-    # But using get_user requires IDs; so keep a simple user_id list in bot memory
-    user_ids = list(context.bot_data.get("USERS", []))
-    for uid in user_ids:
-        user = get_user(uid)
-        if not user:
-            continue
-        if result == "WIN":
-            update_balance(uid, amount)
+    # Update balances
+    users = get_all_users()
+    for user in users:
+        if "WIN" in result:
+            update_balance(user["telegram_id"], amount)
         else:
-            update_balance(uid, -amount)
+            update_balance(user["telegram_id"], -amount)
