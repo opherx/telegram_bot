@@ -1,13 +1,6 @@
 import sqlite3
 
-DB_FILE = "bot.db"
-
-def get_db():
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-    return conn
-
-# --- Existing code ---
-conn = get_db()
+conn = sqlite3.connect("bot.db", check_same_thread=False)
 cursor = conn.cursor()
 
 cursor.execute("""
@@ -38,3 +31,9 @@ def update_balance(tg_id, amount):
         (amount, tg_id)
     )
     conn.commit()
+
+# ✅ Add this function
+def get_all_users():
+    cursor.execute("SELECT telegram_id, balance FROM users")
+    rows = cursor.fetchall()
+    return [{"id": row[0], "balance": row[1]} for row in rows]
