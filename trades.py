@@ -1,11 +1,23 @@
 import random
-from database import get_user, update_balance
+from database import get_db
 
-def simulate_trade(user_id):
-    user = get_user(user_id)
-    if not user:
-        return None
-    pnl = random.uniform(-5, 10)
-    new_balance = user[3] + pnl  # balance column
-    update_balance(user_id, new_balance)
-    return pnl, new_balance
+PAIRS = ["BTC/USDT", "ETH/USDT", "XAUUSD"]
+
+def generate_trade():
+    pair = random.choice(PAIRS)
+    entry = round(random.uniform(100, 50000), 2)
+    exit = entry + random.uniform(-500, 800)
+    result = "WIN" if exit > entry else "LOSS"
+
+    db = get_db()
+    c = db.cursor()
+
+    c.execute(
+        "INSERT INTO trades (pair, entry, exit, result) VALUES (?, ?, ?, ?)",
+        (pair, entry, exit, result)
+    )
+
+    db.commit()
+    db.close()
+
+    return pair, entry, exit, result
