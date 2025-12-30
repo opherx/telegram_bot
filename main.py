@@ -1,7 +1,6 @@
 import os
 import random
-import psycopg2
-import bcrypt
+import sqlite3
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 from telegram import Update, InputFile
@@ -12,153 +11,141 @@ from telegram.ext import (
     JobQueue,
 )
 
-# --- Environment Variables ---
 TOKEN = os.getenv("TOKEN")
-DATABASE_URL = os.getenv("DATABASE_URL")
+PORT = int(os.environ.get("PORT", 8443))  # Railway provides this automatically
 
-# --- Database Connection ---
-conn = psycopg2.connect(DATABASE_URL)
+# SQLite DB (can be replaced with PostgreSQL for production)
+conn = sqlite3.connect("demo.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# Create tables if not exist
+# Users table
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS users (
-    user_id BIGINT PRIMARY KEY,
-    username TEXT UNIQUE,
-    password_hash TEXT,
-    balance REAL DEFAULT 100.0
-)
-""")
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS trades (
-    trade_id SERIAL PRIMARY KEY,
-    user_id BIGINT REFERENCES users(user_id),
-    pnl REAL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    user_id INTEGER PRIMARY KEY,
+    username TEXT,
+    password TEXT,
+    balance REAL
 )
 """)
 conn.commit()
 
-# --- Helper Functions ---
-def hash_password(password: str) -> bytes:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt())
 
-def verify_password(password: str, hashed: bytes) -> bool:
-    return bcrypt.checkpw(password.encode(), hashed)
+# -------------------------
+# User commands
+# -------------------------
 
-def generate_trade_image(username: str, pnl: float, balance: float) -> BytesIO:
-    # Create simple trade screenshot
-    img = Image.new("RGB", (400, 200), color=(20, 20, 20))
-    draw = ImageDraw.Draw(img)
-    font = ImageFont.load_default()
-    
-    draw.text((10, 20), f"User: {username}", fill="white", font=font)
-    draw.text((10, 60), f"Trade PnL: ${pnl:.2f}", fill="white", font=font)
-    draw.text((10, 100), f"Balance: ${balance:.2f}", fill="white", font=font)
-    
-    bio = BytesIO()
-    img.save(bio, format="PNG")
-    bio.seek(0)
-    return bio
-
-# --- Command Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🤖 Demo Trading Bot\n\n"
-        "Use /register <username> <password> to create an account\n"
-        "Use /login <username> <password> to login"
+        "🤖 Demo Trading Bot\n"
+        "Use /register <username> <password> to start."
     )
 
 async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(context.args) != 2:
+    try:
+        username = context.args[0]
+        password = context.args[1]
+    except IndexError:
         await update.message.reply_text("Usage: /register <username> <password>")
         return
-    
-    username, password = context.args
-    password_hash = hash_password(password)
-    
-    try:
-        cursor.execute(
-            "INSERT INTO users (user_id, username, password_hash) VALUES (%s, %s, %s)",
-            (update.effective_user.id, username, password_hash)
-        )
-        conn.commit()
-        await update.message.reply_text("✅ Registration successful! Your demo balance is $100")
-    except psycopg2.errors.UniqueViolation:
-        await update.message.reply_text("❌ Username already exists.")
-        conn.rollback()
 
-async def login(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(context.args) != 2:
-        await update.message.reply_text("Usage: /login <username> <password>")
-        return
-
-    username, password = context.args
     cursor.execute(
-        "SELECT password_hash FROM users WHERE username=%s AND user_id=%s",
-        (username, update.effective_user.id)
+        "INSERT OR REPLACE INTO users (user_id, username, password, balance) VALUES (?, ?, ?, ?)",
+        (update.effective_user.id, username, password, 100.0)
     )
-    row = cursor.fetchone()
-    if not row or not verify_password(password, row[0].tobytes() if hasattr(row[0], "tobytes") else row[0]):
-        await update.message.reply_text("❌ Invalid username or password")
-        return
-    await update.message.reply_text("✅ Logged in successfully!")
+    conn.commit()
+    await update.message.reply_text(
+        f"✅ Registered as {username}\n💰 Demo balance: $100"
+    )
 
 async def dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    cursor.execute("SELECT balance FROM users WHERE user_id=%s", (update.effective_user.id,))
-    row = cursor.fetchone()
-    if not row:
-        await update.message.reply_text("❌ You need to register first")
-        return
-    balance = row[0]
-
     cursor.execute(
-        "SELECT pnl, timestamp FROM trades WHERE user_id=%s ORDER BY timestamp DESC LIMIT 5",
+        "SELECT username, balance FROM users WHERE user_id=?",
         (update.effective_user.id,)
     )
-    trades = cursor.fetchall()
-    
-    text = f"💰 Balance: ${balance:.2f}\n\n📈 Last 5 trades:\n"
-    for pnl, ts in trades:
-        text += f"{ts}: ${pnl:.2f}\n"
-    await update.message.reply_text(text)
+    row = cursor.fetchone()
+    if not row:
+        await update.message.reply_text("❌ Please register first.")
+        return
 
-# --- Automated Trades ---
+    username, balance = row
+    await update.message.reply_text(
+        f"📊 Dashboard\nUser: {username}\nBalance: ${balance:.2f}"
+    )
+
+# -------------------------
+# Auto-trade logic
+# -------------------------
+
+def generate_trade_image(entry, exit_price, pnl):
+    # Simple demo screenshot image
+    img = Image.new("RGB", (500, 300), color=(30, 30, 30))
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.load_default()
+    draw.text((20, 20), f"Entry: ${entry:.2f}", font=font, fill="white")
+    draw.text((20, 60), f"Exit: ${exit_price:.2f}", font=font, fill="white")
+    draw.text((20, 100), f"P/L: ${pnl:.2f}", font=font, fill="white")
+    bio = BytesIO()
+    bio.name = "trade.png"
+    img.save(bio, "PNG")
+    bio.seek(0)
+    return bio
+
 async def auto_trade(context: ContextTypes.DEFAULT_TYPE):
-    cursor.execute("SELECT user_id, username, balance FROM users")
+    cursor.execute("SELECT user_id, balance FROM users")
     users = cursor.fetchall()
-    for user_id, username, balance in users:
+    for user_id, balance in users:
         pnl = random.uniform(-5, 10)
         new_balance = balance + pnl
-
         cursor.execute(
-            "UPDATE users SET balance=%s WHERE user_id=%s",
+            "UPDATE users SET balance=? WHERE user_id=?",
             (new_balance, user_id)
-        )
-        cursor.execute(
-            "INSERT INTO trades (user_id, pnl) VALUES (%s, %s)",
-            (user_id, pnl)
         )
         conn.commit()
 
-        # Send trade screenshot
-        image = generate_trade_image(username, pnl, new_balance)
-        await context.bot.send_photo(chat_id=user_id, photo=InputFile(image))
+        entry = balance
+        exit_price = new_balance
+        img = generate_trade_image(entry, exit_price, pnl)
 
-# --- Main ---
+        try:
+            await context.bot.send_photo(
+                chat_id=user_id,
+                photo=InputFile(img),
+                caption=f"📊 Auto-trade result\nP/L: ${pnl:.2f}\nBalance: ${new_balance:.2f}"
+            )
+        except Exception as e:
+            print(f"Failed to send trade to {user_id}: {e}")
+
+
+# -------------------------
+# Main app with webhook
+# -------------------------
+
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     # Commands
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("register", register))
-    app.add_handler(CommandHandler("login", login))
     app.add_handler(CommandHandler("dashboard", dashboard))
 
-    # JobQueue for auto trades
-    app.job_queue.run_repeating(auto_trade, interval=300, first=10)  # every 5 minutes
+    # Job queue for auto-trading every 5 minutes
+    app.job_queue.run_repeating(auto_trade, interval=300, first=10)
 
-    app.run_polling()
+    # Webhook
+    RAILWAY_URL = os.environ.get("RAILWAY_STATIC_URL")  # your Railway project URL
+    if not RAILWAY_URL:
+        print("Error: Set RAILWAY_STATIC_URL in Railway environment variables.")
+        return
+
+    webhook_url = f"{RAILWAY_URL}/{TOKEN}"
+    print(f"Webhook URL: {webhook_url}")
+
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url_path=TOKEN,
+        webhook_url=webhook_url
+    )
 
 if __name__ == "__main__":
     main()
