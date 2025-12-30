@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS users (
     balance REAL DEFAULT 0
 )
 """)
-
 conn.commit()
 
 def add_user(tg_id, username, password):
@@ -21,9 +20,13 @@ def add_user(tg_id, username, password):
     )
     conn.commit()
 
-def get_user(tg_id):
-    cursor.execute("SELECT * FROM users WHERE telegram_id = ?", (tg_id,))
-    return cursor.fetchone()
+def get_all_users():
+    cursor.execute("SELECT telegram_id, username, password, balance FROM users")
+    rows = cursor.fetchall()
+    return [
+        {"telegram_id": r[0], "username": r[1], "password": r[2], "balance": r[3]}
+        for r in rows
+    ]
 
 def update_balance(tg_id, amount):
     cursor.execute(
@@ -31,9 +34,3 @@ def update_balance(tg_id, amount):
         (amount, tg_id)
     )
     conn.commit()
-
-# ✅ Add this function
-def get_all_users():
-    cursor.execute("SELECT telegram_id, balance FROM users")
-    rows = cursor.fetchall()
-    return [{"id": row[0], "balance": row[1]} for row in rows]
