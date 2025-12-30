@@ -1,36 +1,46 @@
-import sqlite3
+# database.py
 
-conn = sqlite3.connect("bot.db", check_same_thread=False)
-cursor = conn.cursor()
+# This is a simple in-memory DB simulation.
+# Replace with real DB code if you want persistent storage.
+USERS = []
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS users (
-    telegram_id INTEGER PRIMARY KEY,
-    username TEXT,
-    password TEXT,
-    balance REAL DEFAULT 0
-)
-""")
-conn.commit()
-
-def add_user(tg_id, username, password):
-    cursor.execute(
-        "INSERT OR REPLACE INTO users (telegram_id, username, password, balance) VALUES (?, ?, ?, ?)",
-        (tg_id, username, password, 0)
-    )
-    conn.commit()
+def get_db():
+    """Returns the simulated database"""
+    return USERS
 
 def get_all_users():
-    cursor.execute("SELECT telegram_id, username, password, balance FROM users")
-    rows = cursor.fetchall()
-    return [
-        {"telegram_id": r[0], "username": r[1], "password": r[2], "balance": r[3]}
-        for r in rows
-    ]
+    """Return all registered users"""
+    return USERS
+
+def get_user(tg_id):
+    """Find a user by Telegram ID"""
+    for user in USERS:
+        if user["telegram_id"] == tg_id:
+            return user
+    return None
+
+def add_user(tg_id, username):
+    """Add a new user"""
+    user = {
+        "telegram_id": tg_id,
+        "username": username,
+        "balance": 0.0
+    }
+    USERS.append(user)
+    return user
 
 def update_balance(tg_id, amount):
-    cursor.execute(
-        "UPDATE users SET balance = balance + ? WHERE telegram_id = ?",
-        (amount, tg_id)
-    )
-    conn.commit()
+    """Update user's balance by adding the amount"""
+    user = get_user(tg_id)
+    if user:
+        user["balance"] += amount
+        return True
+    return False
+
+def set_balance(tg_id, amount):
+    """Set user's balance to a specific value"""
+    user = get_user(tg_id)
+    if user:
+        user["balance"] = amount
+        return True
+    return False
