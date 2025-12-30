@@ -1,4 +1,4 @@
-database.pyimport sqlite3
+import sqlite3
 
 conn = sqlite3.connect("demo.db", check_same_thread=False)
 cursor = conn.cursor()
