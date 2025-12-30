@@ -20,7 +20,14 @@ async def register_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
     add_user(tg_id, username, password)
 
     # Add to bot's user list
-    context.bot_data["USERS"].append(tg_id)
+    tg_id = update.effective_user.id
+
+# Initialize USERS list if it doesn't exist
+if "USERS" not in context.bot_data:
+    context.bot_data["USERS"] = []
+
+context.bot_data["USERS"].append(tg_id)
+
 
     await update.message.reply_text(f"✅ Registration complete! Welcome, {username} 🎉")
     return ConversationHandler.END
