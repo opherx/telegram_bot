@@ -1,31 +1,54 @@
 import sqlite3
 
-conn = sqlite3.connect("demo.db", check_same_thread=False)
-cursor = conn.cursor()
+DB_FILE = "users.db"
 
-# Users table
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS users (
-    user_id INTEGER PRIMARY KEY,
-    username TEXT,
-    password TEXT,
-    balance REAL DEFAULT 100
-)
-""")
-conn.commit()
+def get_connection():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-# Functions
-def add_user(user_id, username, password):
-    cursor.execute(
-        "INSERT OR REPLACE INTO users (user_id, username, password, balance) VALUES (?, ?, ?, ?)",
-        (user_id, username, password, 100)
+def create_tables():
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Users table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE,
+        password TEXT
     )
+    """)
+    # Example trades table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS trades (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        symbol TEXT,
+        entry_price REAL,
+        exit_price REAL,
+        result TEXT,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+    """)
     conn.commit()
+    conn.close()
 
-def get_user(user_id):
-    cursor.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
-    return cursor.fetchone()
+def add_user(username, password):
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
 
-def update_balance(user_id, new_balance):
-    cursor.execute("UPDATE users SET balance=? WHERE user_id=?", (new_balance, user_id))
-    conn.commit()
+def get_user(username, password):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
+    user = cursor.fetchone()
+    conn.close()
+    return user
