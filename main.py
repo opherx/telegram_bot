@@ -5,7 +5,7 @@ from telegram.ext import (
     ConversationHandler,
 )
 
-# handlers
+# -------- HANDLERS --------
 from handlers.users import (
     register_start,
     register_username,
@@ -14,7 +14,7 @@ from handlers.users import (
     PASSWORD,
 )
 
-from handlers.payment import (
+from handlers.payments import (
     deposit,
     withdraw_start,
     withdraw_wallet,
@@ -25,11 +25,12 @@ from handlers.payment import (
 
 from handlers.trade import trade
 
-# jobs
+# -------- JOBS --------
 from jobs.trade_engine import send_trade
 
+# -------- ENV VARIABLES --------
 TOKEN = os.environ.get("RAILWAY_BOT_TOKEN")
-CHANNEL_ID = os.environ.get("CHANNEL_ID")  # your channel id
+CHANNEL_ID = os.environ.get("CHANNEL_ID")  # your Telegram channel id
 
 def main():
     if not TOKEN:
@@ -37,7 +38,7 @@ def main():
 
     app = ApplicationBuilder().token(TOKEN).build()
 
-    # store channel id globally
+    # Store channel id globally for trades
     app.bot_data["CHANNEL_ID"] = CHANNEL_ID
 
     # -------- REGISTER --------
@@ -69,7 +70,7 @@ def main():
     # -------- AUTO TRADES --------
     app.job_queue.run_repeating(
         send_trade,
-        interval=60,   # every 60 seconds
+        interval=60,  # every 60 seconds
         first=15,
     )
 
