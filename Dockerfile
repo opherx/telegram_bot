@@ -1,19 +1,10 @@
-# Use full Python 3.11 image
-FROM python:3.11
+FROM python:3.13-slim
 
 WORKDIR /app
-
-# Copy project files
 COPY . /app
 
-# Upgrade pip
 RUN pip install --upgrade pip
-
-# Install Python dependencies (PTB with job-queue + Pillow)
 RUN pip install -r requirements.txt
 
-# Persist demo.db outside container (volume mapping)
-VOLUME ["/app/demo.db"]
-
-# Run the bot
+ENV TOKEN=YOUR_BOT_TOKEN
 CMD ["python", "main.py"]
