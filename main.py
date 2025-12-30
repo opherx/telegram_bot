@@ -1,97 +1,78 @@
 import sqlite3
-import asyncio
 from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    ContextTypes,
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+
+# ====== DATABASE SETUP ======
+conn = sqlite3.connect("bot_users.db")
+c = conn.cursor()
+c.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    password TEXT,
+    balance REAL DEFAULT 0
 )
+""")
+conn.commit()
 
-# ------------------------
-# DATABASE SETUP
-# ------------------------
-DB_PATH = "users.db"
+# ====== BOT TOKEN ======
+import os
+TOKEN = os.environ.get("RAILWAY_BOT_TOKEN")
+if not TOKEN:
+    print("RAILWAY_BOT_TOKEN not set in environment")
+    exit(1)
 
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        """CREATE TABLE IF NOT EXISTS users (
-               id INTEGER PRIMARY KEY AUTOINCREMENT,
-               username TEXT UNIQUE,
-               password TEXT
-           )"""
-    )
-    conn.commit()
-    conn.close()
-
-def add_user(username: str, password: str):
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
-        conn.commit()
-        conn.close()
-        return True
-    except sqlite3.IntegrityError:
-        return False
-
-# ------------------------
-# BOT HANDLERS
-# ------------------------
+# ====== COMMAND HANDLERS ======
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Welcome! Use /register <username> <password> to register."
+        "Welcome! Use /register <username> <password> to create an account."
     )
 
 async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(context.args) != 2:
+    try:
+        username = context.args[0]
+        password = context.args[1]
+    except IndexError:
         await update.message.reply_text("Usage: /register <username> <password>")
         return
-    username, password = context.args
-    if add_user(username, password):
-        await update.message.reply_text(f"User {username} registered successfully!")
-    else:
-        await update.message.reply_text(f"Username {username} is already taken.")
 
-# ------------------------
-# AUTO TRADING JOB
-# ------------------------
-async def auto_trade(context: ContextTypes.DEFAULT_TYPE):
-    print("Running auto trade...")
-    # Example: send a message to admin or group
-    chat_id = context.bot_data.get("ADMIN_CHAT_ID")
-    if chat_id:
-        await context.bot.send_message(chat_id=chat_id, text="Auto trade executed.")
+    try:
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
+        conn.commit()
+        await update.message.reply_text(f"Registered {username} successfully!")
+    except sqlite3.IntegrityError:
+        await update.message.reply_text("Username already exists!")
 
-# ------------------------
-# MAIN
-# ------------------------
-def main():
-    init_db()  # Make sure DB is ready
-
-    # Bot token from environment variable (Railway uses RAILWAY_BOT_TOKEN)
-    import os
-    TOKEN = os.environ.get("RAILWAY_BOT_TOKEN")
-    if not TOKEN:
-        print("RAILWAY_BOT_TOKEN not set in environment")
+async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    username = context.args[0] if context.args else None
+    if not username:
+        await update.message.reply_text("Usage: /balance <username>")
         return
 
+    c.execute("SELECT balance FROM users WHERE username=?", (username,))
+    result = c.fetchone()
+    if result:
+        await update.message.reply_text(f"{username}'s balance: ${result[0]:.2f}")
+    else:
+        await update.message.reply_text("User not found!")
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "/register <username> <password> - Register an account\n"
+        "/balance <username> - Check your balance\n"
+        "/help - Show this message"
+    )
+
+# ====== MAIN FUNCTION ======
+def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
-    # Add handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("register", register))
+    app.add_handler(CommandHandler("balance", balance))
+    app.add_handler(CommandHandler("help", help_command))
 
-    # Optional: set admin chat ID (to send trade updates)
-    admin_chat_id = os.environ.get("ADMIN_CHAT_ID")
-    if admin_chat_id:
-        app.bot_data["ADMIN_CHAT_ID"] = int(admin_chat_id)
-
-    # Run auto trade every 5 minutes
-    app.job_queue.run_repeating(auto_trade, interval=300, first=10)
-
-    # Start polling
+    print("Bot started!")
     app.run_polling()
 
 if __name__ == "__main__":
