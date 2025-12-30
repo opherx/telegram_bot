@@ -1,171 +1,130 @@
-import sqlite3
+import os
 import asyncio
-from telegram import Update
-from telegram.constants import ParseMode
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    ContextTypes,
     MessageHandler,
     filters,
     ConversationHandler,
+    ContextTypes,
 )
 
-# --- SQLite setup ---
-conn = sqlite3.connect("users.db")
-cursor = conn.cursor()
-cursor.execute(
-    """
-CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    telegram_id INTEGER UNIQUE,
-    username TEXT,
-    password TEXT,
-    balance REAL DEFAULT 0
-)
-"""
-)
-conn.commit()
+# Environment token
+TOKEN = os.environ.get("RAILWAY_BOT_TOKEN")
 
-# --- Conversation states ---
-REGISTER_USERNAME, REGISTER_PASSWORD = range(2)
+# In-memory storage (replace with DB for production)
+users = {}
+balances = {}
+
+# Registration steps
+USERNAME, PASSWORD = range(2)
 WITHDRAW_WALLET, WITHDRAW_AMOUNT = range(2)
-
-# --- Handlers ---
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Welcome! Use /register to create an account."
+        "Welcome! Use /register to create an account, /deposit to get funds, "
+        "/withdraw to withdraw, and /trade to see trades."
     )
 
-# --- Register ---
+# ---- REGISTER ----
 async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Enter your desired username:")
-    return REGISTER_USERNAME
+    return USERNAME
 
-async def register_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["username"] = update.message.text
-    await update.message.reply_text("Enter your password:")
-    return REGISTER_PASSWORD
+async def reg_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data['username'] = update.message.text
+    await update.message.reply_text("Enter your desired password:")
+    return PASSWORD
 
-async def register_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def reg_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    username = context.user_data['username']
     password = update.message.text
-    username = context.user_data["username"]
-    telegram_id = update.message.from_user.id
-
-    try:
-        cursor.execute(
-            "INSERT INTO users (telegram_id, username, password, balance) VALUES (?, ?, ?, ?)",
-            (telegram_id, username, password, 0),
-        )
-        conn.commit()
-        await update.message.reply_text(
-            f"✅ Registration complete!\nUsername: {username}\nBalance: $0"
-        )
-    except sqlite3.IntegrityError:
-        await update.message.reply_text("⚠️ You are already registered!")
+    users[update.effective_user.id] = {'username': username, 'password': password}
+    balances[update.effective_user.id] = 0
+    await update.message.reply_text(f"Registered successfully! Welcome, {username}.")
     return ConversationHandler.END
 
-# --- Deposit ---
+# ---- DEPOSIT ----
 async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    telegram_id = update.message.from_user.id
-    cursor.execute("SELECT balance FROM users WHERE telegram_id=?", (telegram_id,))
-    user = cursor.fetchone()
-    if not user:
-        await update.message.reply_text("⚠️ You must /register first.")
+    uid = update.effective_user.id
+    if uid not in users:
+        await update.message.reply_text("You must register first with /register")
         return
-    cursor.execute(
-        "UPDATE users SET balance = balance + 100 WHERE telegram_id=?", (telegram_id,)
-    )
-    conn.commit()
-    await update.message.reply_text("💰 Deposited $100. Enjoy!")
+    balances[uid] += 100
+    await update.message.reply_text("Deposit successful! $100 credited to your account.")
 
-# --- Withdraw ---
+# ---- WITHDRAW ----
 async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    telegram_id = update.message.from_user.id
-    cursor.execute("SELECT balance FROM users WHERE telegram_id=?", (telegram_id,))
-    user = cursor.fetchone()
-    if not user:
-        await update.message.reply_text("⚠️ You must /register first.")
+    uid = update.effective_user.id
+    if uid not in users:
+        await update.message.reply_text("You must register first with /register")
         return ConversationHandler.END
     await update.message.reply_text("Enter your USDT wallet address:")
     return WITHDRAW_WALLET
 
 async def withdraw_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["wallet"] = update.message.text
+    context.user_data['wallet'] = update.message.text
     await update.message.reply_text("Enter amount to withdraw:")
     return WITHDRAW_AMOUNT
 
 async def withdraw_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
     amount = float(update.message.text)
-    telegram_id = update.message.from_user.id
-    cursor.execute("SELECT balance FROM users WHERE telegram_id=?", (telegram_id,))
-    balance = cursor.fetchone()[0]
-
-    if amount > balance:
-        await update.message.reply_text("⚠️ Insufficient balance.")
-        return ConversationHandler.END
-
-    cursor.execute(
-        "UPDATE users SET balance = balance - ? WHERE telegram_id=?",
-        (amount, telegram_id),
-    )
-    conn.commit()
-    await update.message.reply_text(
-        f"✅ Withdrawal of {amount} USDT successful to wallet {context.user_data['wallet']}."
-    )
+    if amount > balances.get(uid, 0):
+        await update.message.reply_text("Insufficient balance.")
+    else:
+        balances[uid] -= amount
+        wallet = context.user_data['wallet']
+        await update.message.reply_text(f"Withdrawal of ${amount} to {wallet} successful!")
     return ConversationHandler.END
 
-# --- Trade simulation ---
-async def trade_simulation(context: ContextTypes.DEFAULT_TYPE):
-    channel_id = context.bot_data.get("CHANNEL_ID")
-    if channel_id:
-        await context.bot.send_message(
-            chat_id=channel_id,
-            text="📈 New trade signal: BUY EUR/USD at 1.1234",
-        )
-
+# ---- TRADE SIMULATION ----
 async def trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📊 Trade signals will be sent to the channel.")
+    # Example simulated trade
+    await update.message.reply_text("Trade signal: BUY BTC/USDT at 30000, TP: 30500, SL: 29500")
 
-# --- Main ---
+async def trade_simulation(context: ContextTypes.DEFAULT_TYPE):
+    for uid in users:
+        await context.bot.send_message(chat_id=uid, text="Trade update: BUY ETH/USDT at 1800, TP: 1850, SL: 1750")
+
+# ---- MAIN ----
 def main():
-    TOKEN = "YOUR_BOT_TOKEN"
-    CHANNEL_ID = -1001234567890  # replace with your channel ID
-
     app = ApplicationBuilder().token(TOKEN).build()
-    app.bot_data["CHANNEL_ID"] = CHANNEL_ID
 
-    # Conversation handler for registration
-    reg_conv = ConversationHandler(
-        entry_points=[CommandHandler("register", register)],
+    # Registration handler
+    reg_handler = ConversationHandler(
+        entry_points=[CommandHandler('register', register)],
         states={
-            REGISTER_USERNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_username)],
-            REGISTER_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_password)],
+            USERNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, reg_username)],
+            PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, reg_password)],
         },
-        fallbacks=[],
+        fallbacks=[]
     )
 
-    # Conversation handler for withdraw
-    withdraw_conv = ConversationHandler(
-        entry_points=[CommandHandler("withdraw", withdraw)],
+    withdraw_handler = ConversationHandler(
+        entry_points=[CommandHandler('withdraw', withdraw)],
         states={
             WITHDRAW_WALLET: [MessageHandler(filters.TEXT & ~filters.COMMAND, withdraw_wallet)],
             WITHDRAW_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, withdraw_amount)],
         },
-        fallbacks=[],
+        fallbacks=[]
     )
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(reg_conv)
+    app.add_handler(reg_handler)
     app.add_handler(CommandHandler("deposit", deposit))
-    app.add_handler(withdraw_conv)
+    app.add_handler(withdraw_handler)
     app.add_handler(CommandHandler("trade", trade))
 
-    # Schedule trade simulation every 60 seconds
-    app.job_queue.run_repeating(trade_simulation, interval=60, first=10)
+    # Run simulated trades every 60 seconds
+    if app.job_queue:
+        app.job_queue.run_repeating(trade_simulation, interval=60, first=10)
 
     app.run_polling()
 
 if __name__ == "__main__":
-    main()
+    if not TOKEN:
+        print("Error: Set RAILWAY_BOT_TOKEN environment variable!")
+    else:
+        main()
