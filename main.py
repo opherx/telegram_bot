@@ -1,8 +1,12 @@
 import os
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     ConversationHandler,
+    MessageHandler,
+    filters,
+    ContextTypes,
 )
 from handlers.users import (
     register_start,
@@ -25,23 +29,31 @@ from jobs.trade_engine import send_trade
 TOKEN = os.environ.get("RAILWAY_BOT_TOKEN")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")  # your Telegram channel ID
 
-# START command
-from telegram import Update
-from telegram.ext import ContextTypes
-
+# ---- START COMMAND ----
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("💎 Register", callback_data="register")],
+        [InlineKeyboardButton("💰 Deposit", callback_data="deposit")],
+        [InlineKeyboardButton("📤 Withdraw", callback_data="withdraw")],
+        [InlineKeyboardButton("📈 Trade", callback_data="trade")],
+        [InlineKeyboardButton("ℹ️ Balance", callback_data="balance")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
     welcome_text = (
         "👋 *Welcome to TradeMaster Bot!*\n\n"
         "💎 Ready to start your demo trading journey?\n\n"
-        "Here’s what you can do:\n"
-        "📝 /register - Create your account\n"
-        "💰 /deposit - Auto credit $100 (demo)\n"
-        "📤 /withdraw - Withdraw your balance\n"
-        "📈 /trade - See latest trade signals\n"
-        "ℹ️ /balance - Check your balance\n\n"
-        "⚡ *Tip:* Trades are simulated every 1 minute, stay tuned for signals! 🚀"
+        "⚡ Here’s what you can do:\n"
+        "📝 Register /register\n"
+        "💰 Deposit /deposit\n"
+        "📤 Withdraw /withdraw\n"
+        "📈 Trade /trade\n"
+        "ℹ️ Balance /balance\n\n"
+        "🚀 *Tip:* Trades are simulated every 1 minute. Stay tuned for signals!"
     )
-    await update.message.reply_text(welcome_text, parse_mode="Markdown")
+
+    await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup)
+
 
 def main():
     if not TOKEN:
@@ -49,16 +61,15 @@ def main():
 
     app = ApplicationBuilder().token(TOKEN).build()
 
-    # store channel id globally
+    # Store channel id globally
     app.bot_data["CHANNEL_ID"] = CHANNEL_ID
-    app.bot_data["USERS"] = []  # to store registered user IDs
 
     # -------- REGISTER --------
     register_handler = ConversationHandler(
         entry_points=[CommandHandler("register", register_start)],
         states={
-            USERNAME: [register_username],
-            PASSWORD: [register_password],
+            USERNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_username)],
+            PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_password)],
         },
         fallbacks=[],
     )
@@ -67,8 +78,8 @@ def main():
     withdraw_handler = ConversationHandler(
         entry_points=[CommandHandler("withdraw", withdraw_start)],
         states={
-            WALLET: [withdraw_wallet],
-            AMOUNT: [withdraw_amount],
+            WALLET: [MessageHandler(filters.TEXT & ~filters.COMMAND, withdraw_wallet)],
+            AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, withdraw_amount)],
         },
         fallbacks=[],
     )
@@ -83,12 +94,13 @@ def main():
     # -------- AUTO TRADES --------
     app.job_queue.run_repeating(
         send_trade,
-        interval=60,   # every 60 seconds
+        interval=60,  # every 60 seconds
         first=15,
     )
 
     print("🤖 Bot is running...")
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
