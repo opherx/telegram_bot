@@ -1,32 +1,36 @@
 import sqlite3
 
-DB = "bot.db"
+conn = sqlite3.connect("bot.db", check_same_thread=False)
+cursor = conn.cursor()
 
-def get_db():
-    return sqlite3.connect(DB, check_same_thread=False)
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    telegram_id INTEGER PRIMARY KEY,
+    username TEXT,
+    password TEXT,
+    balance REAL DEFAULT 0
+)
+""")
 
-def init_db():
-    db = get_db()
-    c = db.cursor()
+conn.commit()
 
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        telegram_id INTEGER PRIMARY KEY,
-        username TEXT,
-        password TEXT,
-        balance REAL DEFAULT 0
+
+def add_user(tg_id, username, password):
+    cursor.execute(
+        "INSERT OR REPLACE INTO users (telegram_id, username, password, balance) VALUES (?, ?, ?, ?)",
+        (tg_id, username, password, 0)
     )
-    """)
+    conn.commit()
 
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS trades (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        pair TEXT,
-        entry REAL,
-        exit REAL,
-        result TEXT
+
+def get_user(tg_id):
+    cursor.execute("SELECT * FROM users WHERE telegram_id = ?", (tg_id,))
+    return cursor.fetchone()
+
+
+def update_balance(tg_id, amount):
+    cursor.execute(
+        "UPDATE users SET balance = balance + ? WHERE telegram_id = ?",
+        (amount, tg_id)
     )
-    """)
-
-    db.commit()
-    db.close()
+    conn.commit()
