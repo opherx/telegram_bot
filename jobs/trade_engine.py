@@ -1,35 +1,34 @@
 import random
-from database import get_all_users, update_balance
-from telegram import ParseMode
-from telegram.ext import ContextTypes
+from database import get_user, update_balance
 
-# List of pairs for demo trades
+# List of demo trading pairs
 PAIRS = ["EUR/USD", "GBP/USD", "BTC/USDT", "ETH/USDT"]
 
-async def send_trade(context: ContextTypes.DEFAULT_TYPE):
+async def send_trade(context):
     """Send a trade signal to the channel and update users' balances."""
     
-    # Pick random trade
     pair = random.choice(PAIRS)
     result = random.choice(["WIN", "LOSS"])
-    amount = random.randint(5, 50)  # Trade amount for demo
+    amount = random.randint(5, 50)  # Demo trade amount
 
-    # Build message
     message = f"💹 Trade Signal\nPair: {pair}\nResult: {result}\nAmount: ${amount}"
-    
-    # Send to channel
+
     channel_id = context.bot_data.get("CHANNEL_ID")
     if channel_id:
         await context.bot.send_message(
             chat_id=channel_id,
-            text=message,
-            parse_mode=ParseMode.MARKDOWN
+            text=message
         )
-    
-    # Update all users' balances (demo logic)
-    users = get_all_users()  # Returns list of dicts with 'id' and 'balance'
-    for user in users:
+
+    # Update all registered users
+    # Since get_all_users was removed, we manually query users from DB
+    # But using get_user requires IDs; so keep a simple user_id list in bot memory
+    user_ids = list(context.bot_data.get("USERS", []))
+    for uid in user_ids:
+        user = get_user(uid)
+        if not user:
+            continue
         if result == "WIN":
-            update_balance(user["id"], user["balance"] + amount)
+            update_balance(uid, amount)
         else:
-            update_balance(user["id"], max(0, user["balance"] - amount))
+            update_balance(uid, -amount)
