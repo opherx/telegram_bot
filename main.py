@@ -313,37 +313,47 @@ async def trading_engine(context):
 # ================= MAIN =================
 
 async def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app = (
+        ApplicationBuilder()
+        .token(BOT_TOKEN)
+        .build()
+    )
 
+    # ===== COMMANDS =====
     app.add_handler(CommandHandler("start", start))
 
-app.add_handler(
-    MessageHandler(filters.TEXT & ~filters.COMMAND, register)
-)
+    # ===== TEXT HANDLERS =====
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, register)
+    )
 
-app.add_handler(CallbackQueryHandler(deposit, pattern="^deposit$"))
-app.add_handler(CallbackQueryHandler(select_coin, pattern="^coin_"))
-app.add_handler(CallbackQueryHandler(verify, pattern="^verify$"))
-app.add_handler(CallbackQueryHandler(admin_deposit, pattern="^(confirm|reject)_"))
-app.add_handler(CallbackQueryHandler(withdraw, pattern="^withdraw$"))
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, deposit_amount)
+    )
 
-app.add_handler(
-    MessageHandler(filters.TEXT & ~filters.COMMAND, deposit_amount)
-)
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, process_withdraw)
+    )
 
-app.add_handler(
-    MessageHandler(filters.TEXT & ~filters.COMMAND, process_withdraw)
-)
+    # ===== CALLBACKS =====
+    app.add_handler(CallbackQueryHandler(deposit, pattern="^deposit$"))
+    app.add_handler(CallbackQueryHandler(select_coin, pattern="^coin_"))
+    app.add_handler(CallbackQueryHandler(verify, pattern="^verify$"))
+    app.add_handler(CallbackQueryHandler(admin_deposit, pattern="^(confirm|reject)_"))
+    app.add_handler(CallbackQueryHandler(withdraw, pattern="^withdraw$"))
+    app.add_handler(CallbackQueryHandler(admin_withdraw, pattern="^(wok|wno)_"))
 
-app.add_handler(
-    CallbackQueryHandler(admin_withdraw, pattern="^(wok|wno)_")
-)
+    # ===== JOB QUEUE (THIS WAS YOUR ERROR) =====
+    app.job_queue.run_repeating(
+        trading_engine,
+        interval=TRADE_INTERVAL,
+        first=10
+    )
 
+    print("✅ Bot started successfully")
 
-    app.job_queue.run_repeating(trading_engine, interval=TRADE_INTERVAL, first=10)
-
-    print("✅ Gothix AI Demo Bot Running")
     await app.run_polling()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
