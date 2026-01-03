@@ -89,6 +89,12 @@ async def deposit_verify(update, context):
     user = query.from_user
     deposit_id = context.user_data.get("deposit_id")
 
+    await context.bot.send_message(
+    chat_id=ADMIN_ID,
+    text="DEBUG: deposit_verify reached"
+)
+
+
     if not deposit_id:
         await query.answer("Deposit not found.", show_alert=True)
         return
