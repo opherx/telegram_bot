@@ -18,9 +18,12 @@ from PIL import Image, ImageDraw, ImageFont
 
 # ================= CONFIG =================
 
-BOT_TOKEN = "YOUR_BOT_TOKEN"
-ADMIN_ID = 123456789
-CHANNEL_ID = -1001234567890
+import os
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
+CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
+
 
 MIN_DEPOSIT = 20.0
 TRADE_INTERVAL = 300  # seconds
