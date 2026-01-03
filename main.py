@@ -312,7 +312,7 @@ async def trading_engine(context):
 
 # ================= MAIN =================
 
-async def main():
+def main():
     app = (
         ApplicationBuilder()
         .token(BOT_TOKEN)
@@ -323,17 +323,9 @@ async def main():
     app.add_handler(CommandHandler("start", start))
 
     # ===== TEXT HANDLERS =====
-    app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, register)
-    )
-
-    app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, deposit_amount)
-    )
-
-    app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, process_withdraw)
-    )
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, register))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, deposit_amount))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_withdraw))
 
     # ===== CALLBACKS =====
     app.add_handler(CallbackQueryHandler(deposit, pattern="^deposit$"))
@@ -343,7 +335,7 @@ async def main():
     app.add_handler(CallbackQueryHandler(withdraw, pattern="^withdraw$"))
     app.add_handler(CallbackQueryHandler(admin_withdraw, pattern="^(wok|wno)_"))
 
-    # ===== JOB QUEUE (THIS WAS YOUR ERROR) =====
+    # ===== JOB QUEUE =====
     app.job_queue.run_repeating(
         trading_engine,
         interval=TRADE_INTERVAL,
@@ -351,9 +343,8 @@ async def main():
     )
 
     print("✅ Bot started successfully")
-
-    await app.run_polling()
+    app.run_polling()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
