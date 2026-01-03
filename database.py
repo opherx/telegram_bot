@@ -76,3 +76,23 @@ def get_pool_balance():
 def update_pool(amount):
     cur.execute("UPDATE pool SET balance = balance + ? WHERE id=1", (amount,))
     conn.commit()
+
+def get_trade_stats():
+    row = cur.execute(
+        "SELECT wins, losses FROM pool WHERE id=1"
+    ).fetchone()
+    return row["wins"], row["losses"]
+
+def increment_trade(win: bool):
+    if win:
+        cur.execute("UPDATE pool SET wins = wins + 1 WHERE id=1")
+    else:
+        cur.execute("UPDATE pool SET losses = losses + 1 WHERE id=1")
+    conn.commit()
+
+def get_trade_number():
+    row = cur.execute(
+        "SELECT wins + losses AS total FROM pool WHERE id=1"
+    ).fetchone()
+    return row["total"] + 1
+
