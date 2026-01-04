@@ -2,7 +2,11 @@ from images.generator import base_card, load_font
 
 def generate_trade_close(data, filename="trade_close.png"):
     title = "POSITION CLOSED - PROFIT" if data["win"] else "POSITION CLOSED - LOSS"
-    img, draw = base_card(title)
+
+    img, draw = base_card(
+        title=title,
+        qr_data=f"Trade #{data['trade_no']} | PNL {data['pnl']}"
+    )
 
     color = "#22c55e" if data["win"] else "#ef4444"
 
