@@ -36,7 +36,7 @@ def generate_trade_open(data, filename="trade_open.png"):
         y += 50
 
     paste_logo_and_brand(img, d)
-    paste_qr(img, data["qr"])
+    paste_qr(img, data.get("qr", ""))
 
     img.save(filename)
     return filename
