@@ -1,6 +1,5 @@
 from PIL import Image, ImageDraw, ImageFont
-import os
-import qrcode
+import os, qrcode
 
 FONT_PATH = "assets/fonts/DejaVuSans-Bold.ttf"
 LOGO_PATH = "assets/logo.png"
@@ -21,23 +20,26 @@ def font(size):
         return ImageFont.load_default()
 
 
-def paste_logo(img):
-    if not os.path.exists(LOGO_PATH):
-        return
-    try:
-        logo = Image.open(LOGO_PATH).convert("RGBA").resize((90, 90))
-        img.paste(logo, (40, img.height - 130), logo)
-    except Exception as e:
-        print("Logo error:", e)
+def rounded(draw, xy, radius, fill):
+    draw.rounded_rectangle(xy, radius=radius, fill=fill)
+
+
+def paste_logo_and_brand(img, draw):
+    footer_y = img.height - 100
+    rounded(draw, (0, footer_y, img.width, img.height), 0, "#d1d5db")
+
+    if os.path.exists(LOGO_PATH):
+        logo = Image.open(LOGO_PATH).convert("RGBA").resize((70, 70))
+        img.paste(logo, (40, footer_y + 15), logo)
+
+    draw.text(
+        (130, footer_y + 35),
+        "CASHIFY AI BOT",
+        font=font(28),
+        fill="#111827"
+    )
 
 
 def paste_qr(img, data: str):
-    try:
-        qr = qrcode.make(data).resize((90, 90))
-        img.paste(qr, (img.width - 130, img.height - 130))
-    except Exception as e:
-        print("QR error:", e)
-
-
-def rounded(draw, xy, radius, fill):
-    draw.rounded_rectangle(xy, radius=radius, fill=fill)
+    qr = qrcode.make(data).resize((80, 80))
+    img.paste(qr, (img.width - 120, img.height - 90))
