@@ -21,6 +21,13 @@ def main():
 
     # Build application
     app = ApplicationBuilder().token(BOT_TOKEN).build()
+    # =========================
+    # GLOBAL BOT STATE (INIT)
+    # =========================
+    app.bot_data["POOL"] = 150_000.0
+    app.bot_data["USERS"] = 1  # demo default
+    app.bot_data["CHANNEL"] = CHANNEL_ID
+
     app.bot_data["CHANNEL_ID"] = CHANNEL_ID
 
     # Register handlers
