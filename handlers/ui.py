@@ -1,28 +1,21 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from database import cur, get_pool_balance
 
-async def show_main_menu(query):
-    user = cur.execute(
-        "SELECT balance FROM users WHERE telegram_id=?",
-        (query.from_user.id,)
-    ).fetchone()
+ABOUT_TEXT = (
+    "CASHIFY AI BOT simulates pooled algorithmic trading.\n\n"
+    "All trades and balances are virtual and for demonstration only."
+)
 
-    balance = user["balance"] if user else 0
-    pool = get_pool_balance()
+HOW_IT_WORKS = (
+    "• Users pool demo funds\n"
+    "• Trades open & close automatically\n"
+    "• Profits are distributed proportionally\n"
+    "• No real money is involved"
+)
 
-    text = (
-        "🤖 AI Trading Platform (DEMO)\n\n"
-        f"💰 Your Balance: {balance:.2f} USDT\n"
-        f"🏦 Pool Balance: {pool:,.2f} USDT\n"
-        "📊 Status: ACTIVE"
-    )
 
-    keyboard = [
-        [InlineKeyboardButton("💰 Deposit", callback_data="menu:deposit"),
-         InlineKeyboardButton("🏧 Withdraw", callback_data="menu:withdraw")],
-        [InlineKeyboardButton("📊 Performance", callback_data="menu:performance"),
-         InlineKeyboardButton("📈 Trades", callback_data="menu:trades")],
-        [InlineKeyboardButton("👥 Referral", callback_data="menu:referral")]
-    ]
+async def show_about(update, context):
+    await update.callback_query.edit_message_text(ABOUT_TEXT)
 
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def show_how(update, context):
+    await update.callback_query.edit_message_text(HOW_IT_WORKS)
