@@ -32,7 +32,8 @@ async def run_trade(context):
 
     pool_before = context.bot_data["POOL"]
     pool_after = pool_before + pnl
-    context.bot_data["POOL"] = pool_after
+    pool = context.bot_data.get("POOL", 150_000.0)
+    context.bot_data["POOL"] = pool
 
     close_data = {
         **data,
